@@ -1,0 +1,169 @@
+version: '3.4'
+volumes:
+    prometheus_data: {}
+    grafana_data: {}
+services:
+
+  #================================================================================================
+  # PROMETHEUS - https://prometheus.io/
+  #================================================================================================
+  
+  prometheus:
+    image: prom/prometheus:v2.18.1
+    container_name: prometheus
+    ports: ['9090:9090']
+    restart: always
+    volumes: [
+      '${DOCKERCONFIG}/Metrics_Compose/prometheus/data:/prometheus',
+      '${DOCKERCONFIG}/Metrics_Compose/prometheus/config/alert.rules:/etc/prometheus/alert.rules',
+      '${DOCKERCONFIG}/Metrics_Compose/prometheus/config:/etc/prometheus'
+    ]
+    links: [
+      'cadvisor:cadvisor',
+      'alertmanager:alertmanager'
+    ]
+    depends_on: ['cadvisor']
+    command: [
+      '--config.file=/etc/prometheus/prometheus.yml',
+      '--storage.tsdb.path=/prometheus',
+      '--storage.tsdb.retention=200h',
+      '--web.enable-lifecycle',
+      '--web.console.libraries=/etc/prometheus/console_libraries',
+      '--web.console.templates=/etc/prometheus/consoles'
+    ]
+    networks:
+      metrics:
+        aliases: ['prometheus']
+
+  #================================================================================================
+  # GRAFANA - https://grafana.com/
+  #================================================================================================
+  
+  grafana:
+    image: grafana/grafana:7.0.0
+    container_name: grafana
+    depends_on: ['prometheus']
+    ports: ['3330:3000']
+    volumes: [
+      'grafana_data:/var/lib/grafana',
+      '${DOCKERCONFIG}/Metrics_Compose/grafana/provisioning/:/etc/grafana/provisioning/'
+    ]
+    env_file: ['${DOCKERCONFIG}/Metrics_Compose/env/grafana.env']
+    restart: always
+    networks:
+      metrics:
+        aliases: ['grafana']
+
+
+  #================================================================================================
+  # CADVISOR - https://github.com/google/cadvisor/blob/master/docs/storage/prometheus.md
+  #================================================================================================
+
+  cadvisor:
+    restart: always
+    image: google/cadvisor:v0.33.0
+    container_name: cadvisor
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /cgroup:/cgroup:ro
+    ports: ['3001:8080']
+    networks:
+      metrics:
+        aliases: ['cadvisor']
+
+  #================================================================================================
+  # NODEEXPORTER - https://prometheus.io/docs/guides/node-exporter/
+  #================================================================================================
+  
+  nodeexporter:
+    image: prom/node-exporter:v0.18.1
+    container_name: nodeexporter
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - --collector.filesystem.ignored-mount-points
+      - "^/(sys|proc|dev|host|etc|rootfs/var/lib/docker/containers|rootfs/var/lib/docker/overlay2|rootfs/run/docker/netns|rootfs/var/lib/docker/aufs)($$|/)"
+    restart: always
+    ports: ['9101:9100']
+    networks:
+      metrics:
+        aliases: ['nodeexporter']
+
+  #================================================================================================
+  # ALERTMANAGER - https://prometheus.io/docs/alerting/alertmanager/
+  #================================================================================================
+
+  alertmanager:
+    image: prom/alertmanager:v0.20.0
+    container_name: alertmanager
+    ports: ['9093:9093']
+    volumes: ['${DOCKERCONFIG}/Metrics_Compose/alertmanager/:/etc/alertmanager/']
+    restart: always
+    command: [
+      '--config.file=/etc/alertmanager/config.yml',
+      '--storage.path=/alertmanager'
+    ]
+    networks:
+      metrics:
+        aliases: ['alertmanager']
+
+  #================================================================================================
+  # Dozzle - https://dozzle.dev/
+  #================================================================================================
+
+  dozzle:
+    container_name: dozzle
+    restart: always
+    image: amir20/dozzle:v1.25.6
+    environment: ['DOZZLE_TAILSIZE=300']
+    volumes: ['/var/run/docker.sock:/var/run/docker.sock']
+    ports: ['9999:8080']
+
+  #================================================================================================
+  # Varken - https://github.com/Boerderij/Varken
+  #================================================================================================
+
+  # varken:
+  #   hostname: varken
+  #   container_name: varken
+  #   image: boerderij/varken
+  #   networks: ['metrics']
+  #   volumes: ['${DOCKERCONFIG}/Metrics_Compose/varken/config:/config']
+  #   env_file: ['${DOCKERCONFIG}/Metrics_Compose/env/varken.env']
+  #   depends_on: ['influxdb']
+  #   restart: unless-stopped
+
+  #================================================================================================
+  # unifi-poller - https://github.com/unifi-poller/unifi-poller
+  #================================================================================================
+
+  unifi-poller:
+    container_name: unifi_poller
+    restart: always
+    image: golift/unifi-poller:2.0.0
+    volumes: ['${DOCKERCONFIG}/Metrics_Compose/unifi-poller/config:/etc/unifi-poller/']
+    ports: ['9130:9130']
+    networks:
+      metrics:
+        aliases: ['unifipoller']
+
+#-------------------------------------------
+# ADMINER - https://www.adminer.org/
+#-------------------------------------------
+
+  adminer:
+    image: adminer:4.7.7
+    container_name: adminer
+    restart: always
+    ports: ['5433:8080']
+
+networks:
+  metrics:
+    driver: bridge

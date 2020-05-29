@@ -1,0 +1,176 @@
+version: '3.4'
+volumes:
+    hassmariadb: {}
+services:
+
+#-------------------------------------------
+# MOSQUITTO MQTT - https://mosquitto.org/
+#-------------------------------------------
+
+  mqtt:
+    container_name: mqtt
+    restart: always
+    image: eclipse-mosquitto:1.6.9
+    privileged: true
+    volumes: [
+      '${DOCKERCONFIG}/HomeAssistant_Compose/mosquitto/config:/mosquitto/config/',
+      '${DOCKERCONFIG}/HomeAssistant_Compose/mosquitto/data:/mosquitto/data'
+    ]
+    ports: ['9001:9001','1883:1883']
+    restart: unless-stopped
+
+#-------------------------------------------
+# MariaDB - https://mariadb.org/
+#-------------------------------------------
+  
+  mariadb:
+    container_name: mariadb
+    image: mariadb:10.4.13
+    ports: ['3306:3306','3307:3307']
+    volumes: ['hassmariadb:/var/lib/mysql']
+    env_file: ['${DOCKERCONFIG}/HomeAssistant_Compose/env/mariadb.env']
+    restart: on-failure
+
+#-------------------------------------------
+# NODERED - https://nodered.org/
+#-------------------------------------------
+
+  nodered:
+    image: nodered/node-red:1.0.6
+    container_name: nodered
+    restart: always
+    volumes: ['${DOCKERCONFIG}/HomeAssistant_Compose/node_red:/data','/etc/localtime:/etc/localtime:ro','${DOCKERCONFIG}/shared:/shared']
+    ports: ['1880:1880']
+    depends_on: ['homeassistant']
+
+#-------------------------------------------
+# XBOXRESTAPI - https://openxbox.org/
+#-------------------------------------------
+
+  xboxrestapi:
+    container_name: xboxrestapi
+    image: whatdaybob/xbox-smartglass-core
+    environment: ["SERVER=0.0.0.0","PORT=5557"]
+    volumes: ['/etc/localtime:/etc/localtime:ro']
+    restart: always
+    network_mode: "host"
+
+#-------------------------------------------
+# HOME-ASSISTANT - https://www.home-assistant.io/
+#-------------------------------------------
+
+  homeassistant:
+    container_name: homeassistant
+    restart: always
+    hostname: hassio
+    image: homeassistant/home-assistant:0.110.3
+    volumes: ['${DOCKERCONFIG}/HomeAssistant_Compose/homeassistant_core/config:/config','/etc/localtime:/etc/localtime:ro']
+    network_mode: "host"
+    privileged: true
+    env_file: ['${DOCKERCONFIG}/HomeAssistant_Compose/env/homeassistant.env']
+    ports: ['8123:8123']
+    depends_on: ['mqtt','mariadb','zigbee2mqtt','ha-monitor-api','ha_dockermon','esphome']
+    healthcheck:
+      test: "curl -Lf http://192.168.1.159:8123"
+      start_period: 5m
+      timeout: 5s
+      interval: 30s
+      retries: 2
+
+#-------------------------------------------
+# HA-MONITOR-API - https://github.com/ned-kelly/ha-monitor-api/
+#-------------------------------------------
+
+  ha-monitor-api:
+    container_name: ha-monitor-api
+    image: bushrangers/ha-monitor-api:latest
+    restart: always
+    privileged: true
+    network_mode: host
+    environment: ['LISTEN_PORT=8124']
+    volumes: [
+      '/:/rootfs:ro',
+      '/var/run:/var/run:ro',
+      '/sys:/sys:ro',
+      '/var/lib/docker/:/var/lib/docker:ro',
+      '/dev/disk/:/dev/disk:ro'
+    ]
+    healthcheck:
+      test: curl -sS http://192.168.1.159:8123 || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+#-------------------------------------------
+# Zigbee2mqtt - https://www.zigbee2mqtt.io/information/docker.html
+#-------------------------------------------
+
+  zigbee2mqtt:
+    container_name: zigbee2mqtt
+    image: koenkk/zigbee2mqtt:1.13.0
+    restart: always
+    privileged: true
+    network_mode: host
+    devices: ['/dev/ttyACM0:/dev/ttyACM0']
+    volumes: ['/run/udev:/run/udev:ro','${DOCKERCONFIG}/HomeAssistant_Compose/zigbee2mqtt/data:/app/data']
+    environment: ['TZ=Europe/London']
+    depends_on: ['mqtt']
+
+#-------------------------------------------
+# ha_dockermon - https://philhawthorne.com/
+#-------------------------------------------
+
+  ha_dockermon:
+    image: philhawthorne/ha-dockermon:edge
+    container_name: ha_dockermon
+    restart: always
+    volumes: ['/var/run/docker.sock:/var/run/docker.sock','${DOCKERCONFIG}/HomeAssistant_Compose/ha_dockermon/config:/config']
+    ports: ['8126:8126']
+    depends_on: ['mqtt']
+
+#-------------------------------------------
+# esphome - https://esphome.io/
+#-------------------------------------------
+
+  # command for flashing: docker exec -it <container name: esphome> <command to run within the container: esphome> <configfile to load: esphome433.yaml> <specify esphome task: run/build/...>
+  # command for flashing: docker exec -it esphome esphome esphome-esp32-ble.yaml run
+  esphome:
+    container_name: esphome
+    image: esphome/esphome:1.14.3
+    volumes: ['${DOCKERCONFIG}/HomeAssistant_Compose/esphome/:/config:rw']
+    # devices: # most of the time we'll be flashing over OTA (that's why we have port 6052), so the devices setting is not needed, only if it's the first flash of a new device
+    #  - /dev/ttyUSB0:/dev/ttyUSB0 # the ESP device has to be mapped to the docker host (in my case it's a VM in ESXi), if it's not mapped, the /dev/ttyUSB0 device will not exist and the container will fail. If the ESP32 is not connected at the time, we need to comment out the devices section.
+    environment: ['ESPHOME_DASHBOARD_USE_PING=true']
+    network_mode: host
+    restart: unless-stopped
+
+#-------------------------------------------
+# Airconnect - https://github.com/philippe44/AirConnect/
+#-------------------------------------------
+
+  airconnect:
+    container_name: airconnect
+    image: 1activegeek/airconnect:latest
+    network_mode: host
+    restart: unless-stopped
+
+#-------------------------------------------
+# Zigbee2MqttAssistant - https://github.com/yllibed/Zigbee2MqttAssistant
+#-------------------------------------------
+
+  zigbee2mqttAssistant:
+    image: carldebilly/zigbee2mqttassistant:0.3.169
+    container_name: zigbee2mqttAssistant
+    env_file: ['${DOCKERCONFIG}/HomeAssistant_Compose/env/zigbee2mqttAssistant.env']
+    ports: ['8125:80']
+    restart: unless-stopped
+
+#-------------------------------------------
+# bt-mqtt-gateway - https://github.com/zewelor/bt-mqtt-gateway
+#-------------------------------------------
+
+  btmqttgateway:
+    image: zewelor/bt-mqtt-gateway
+    container_name: bt-mqtt-gateway
+    network_mode: host
+    volumes: ['${DOCKERCONFIG}/HomeAssistant_Compose/btmqttgateway/config.yaml:/config.yaml:ro']

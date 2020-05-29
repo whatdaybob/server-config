@@ -1,0 +1,84 @@
+# ${MEDIA} = export MEDIA=/mnt/sdb1/media/
+# ${DOCKERCONFIG} = export DOCKERCONFIG=/home/docker/config
+# {DOCKERDOWNLOADS} = export DOCKERDOWNLOADS=/home/docker/Downloads
+# {DOCKERDOWNLOADSCOMP} = export DOCKERDOWNLOADSCOMP=/mnt/sdb1/downloads/
+# export MEDIA=/mnt/sdb1/media/ && export DOCKERDOWNLOADSCOMP=/mnt/sdb1/downloads/
+# sudo nano /etc/environment
+# NEED TO ADD Varken WHEN PROMETHEUS IS ADDED
+
+
+version: '3.4'
+services:
+
+  nzbget:
+    container_name: nzbget
+    env_file: ['${DOCKERCONFIG}/Media_Compose/env/linuxserverio.env']
+    hostname: nzbget
+    image: linuxserver/nzbget:v21.0-ls49
+    ports: ['16000:6789']
+    networks: ['backend']
+    restart: always
+    volumes: [
+      '${DOCKERCONFIG}/Media_Compose/nzbget:/config',
+      '${DOCKERDOWNLOADS}:/downloads',
+      '${DOCKERDOWNLOADSCOMP}:/downloadscomp'
+    ]
+
+  sonarr:
+    container_name: sonarr
+    depends_on: ['nzbget']
+    env_file: ['${DOCKERCONFIG}/Media_Compose/env/linuxserverio.env']
+    hostname: sonarr
+    image: linuxserver/sonarr:2.0.0.5344-ls65
+    ports: ['16001:8989']
+    networks: ['backend']
+    restart: always
+    volumes: [
+      '${DOCKERCONFIG}/Media_Compose/sonarr:/config',
+      '/etc/localtime:/etc/localtime:ro',
+      '${MEDIA}/tv_tbd:/tv_tbd',
+      '${MEDIA}/kidstv:/kidstv',
+      '${MEDIA}/tv_martin:/tv_martin',
+      '${MEDIA}/tv_kay:/tv_kay',
+      '${MEDIA}/tv_shared:/tv_shared',
+      '${MEDIA}/tv_kids:/tv_kids',
+      '${DOCKERDOWNLOADS}/completed/Series:/downloads',
+      '${DOCKERDOWNLOADSCOMP}/Series:/downloadscomp'
+    ]
+
+  radarr:
+    container_name: radarr
+    depends_on: ['nzbget']
+    env_file: ['${DOCKERCONFIG}/Media_Compose/env/linuxserverio.env']
+    hostname: radarr
+    image: linuxserver/radarr:v0.2.0.1480-ls61
+    ports: ['16002:7878']
+    networks: ['backend']
+    restart: always
+    volumes: [
+      '/etc/localtime:/etc/localtime:ro',
+      '${DOCKERCONFIG}/Media_Compose/radarr:/config',
+      '${MEDIA}/movies:/movies',
+      '${DOCKERDOWNLOADS}/completed/Movies:/downloads',
+      '${DOCKERDOWNLOADSCOMP}/Movies:/downloadscomp'
+    ]
+
+  tautulli:
+    image: linuxserver/tautulli:v2.2.4-ls6
+    container_name: tautulli
+    ports: ['8181:8181']
+    restart: always
+    volumes: [
+      '${DOCKERCONFIG}/Media_Compose/tautulli/config:/config',
+      '${DOCKERCONFIG}/Media_Compose/tautulli/logs:/logs:ro'
+    ]
+    env_file: ['${DOCKERCONFIG}/Media_Compose/env/linuxserverio.env']
+    networks: ['backend']
+
+networks:
+  backend:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.92.93.0/24
+

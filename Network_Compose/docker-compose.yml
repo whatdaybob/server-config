@@ -1,0 +1,172 @@
+#-------------------------------------------
+#  Docker Compose for my Network
+#  @Whatdaybob
+#  Original Repo : https://github.com/whatdaybob/Home-AssistantConfig
+#-------------------------------------------
+
+#-------------------------------------------
+# Package Details:
+#   ${DOCKERCONFIG} = export DOCKERCONFIG=/home/docker/config
+#-------------------------------------------
+
+version: '3.7'
+services:
+
+#-------------------------------------------
+# GODADDY-DDNS - https://hub.docker.com/r/peteward44/godaddy-ddns
+#-------------------------------------------
+
+  godaddy-ddns:
+    image: peteward44/godaddy-ddns:latest
+    container_name: godaddyddns
+    restart: always
+    env_file: ['${DOCKERCONFIG}/Network_Compose/env/godaddy-ddns.env']
+
+
+#-------------------------------------------
+# ipsec-vpn-server
+#-------------------------------------------
+  
+  ipsec-vpn-server:
+    container_name: ipsec-vpn-server
+    image: hwdsl2/ipsec-vpn-server
+    env_file: ['${DOCKERCONFIG}/Network_Compose/env/ipsec-vpn-server.env']
+    restart: always
+    privileged: true
+    ports: ['500:500/udp','4500:4500/udp']
+    volumes: ['/lib/modules:/lib/modules:ro']
+
+#-------------------------------------------
+# Caddy - https://caddyserver.com/
+#-------------------------------------------
+  
+  caddy:
+    container_name: caddy
+    image: abiosoft/caddy:1.0.3
+    expose: ['9180']
+    hostname: caddy
+    ports: ['80:80','443:443','9180:9180']
+    env_file: ['${DOCKERCONFIG}/Network_Compose/env/caddy.env']
+    volumes: [
+      '${DOCKERCONFIG}/shared:/etc/caddycerts',
+      '${DOCKERCONFIG}/Network_Compose/caddy/config/Caddyfile:/etc/Caddyfile',
+      '${DOCKERCONFIG}/Network_Compose/caddy/config/caddy:/usr/local/bin/caddy',
+      '${DOCKERCONFIG}/Network_Compose/caddy/config/redirect_hosts.txt:/share/caddy/redirect_hosts.txt',
+      '${DOCKERCONFIG}/Network_Compose/caddy/logs:/var/log/',
+    ]
+    network_mode: "host"
+    restart: always
+
+  # caddyv2:
+  #   container_name: caddyv2
+  #   image: caddy:2.0.0
+  #   # expose: ['9180']
+  #   hostname: caddyv2
+  #   ports: ['80:80','443:443']
+  #   env_file: ['${DOCKERCONFIG}/Network_Compose/env/caddyv2.env']
+  #   volumes: [
+  #     '${DOCKERCONFIG}/Network_Compose/caddyv2/Caddyfile:/etc/caddy/Caddyfile',
+  #     '${DOCKERCONFIG}/Network_Compose/caddyv2/config/index.html:/usr/share/caddy/index.html:ro',
+  #     '${DOCKERCONFIG}/Network_Compose/caddyv2/data:/data',
+  #   ]
+  #   network_mode: "host"
+  #   restart: always
+
+#-------------------------------------------
+# AdGuard Home - https://adguard.com/en/adguard-home/overview.html
+#-------------------------------------------
+  
+  adguardhome:
+    image: adguard/adguardhome:v0.102.0
+    container_name: adguardhome
+    ports: [
+      '53:53/tcp', 
+      '53:53/udp', 
+      '67:67/udp', 
+      '68:68/tcp', 
+      '68:68/udp', 
+      '8099:80/tcp', 
+      '8098:443/tcp', 
+      '853:853/tcp', 
+      '3000:3000/tcp'
+    ]
+    expose: ['3000']
+    restart: always
+    volumes: [
+      '${DOCKERCONFIG}/Network_Compose/adguard/data:/opt/adguardhome/work',
+      '${DOCKERCONFIG}/Network_Compose/adguard/conf:/opt/adguardhome/conf',
+      '${DOCKERCONFIG}/Network_Compose/adguard/etc/hosts:/etc/hosts'
+    ]
+    cap_add: ['NET_ADMIN']
+    network_mode: "host"
+
+#-------------------------------------------
+# MongoDB - https://www.mongodb.com/
+#-------------------------------------------
+
+  unifimongo:
+    image: mongo:3.4
+    container_name: unifi_mongo
+    ports:
+    - target: 27017 # Mongo
+      published: 27017
+      protocol: tcp
+      mode: host
+    networks: ['unifi']
+    restart: always
+    volumes: ['${DOCKERCONFIG}/Network_Compose/unifi/db:/data/db']
+
+#-------------------------------------------
+# unifi-docker - https://github.com/jacobalberty/unifi-docker/
+#-------------------------------------------
+
+  unificontroller:
+    image: jacobalberty/unifi:5.12.72
+    container_name: unifi_controller
+    depends_on: ['unifimongo']
+    init: true
+    networks: ['unifi']
+    restart: always
+    volumes: [
+      '${DOCKERCONFIG}/Network_Compose/unifi/data:/unifi/data',
+      '${DOCKERCONFIG}/Network_Compose/unifi/log:/unifi/log',
+      '${DOCKERCONFIG}/Network_Compose/unifi/cert:/unifi/cert',
+      '${DOCKERCONFIG}/Network_Compose/unifi/init:/unifi/init.d'
+    ]
+    env_file: ['${DOCKERCONFIG}/Network_Compose/env/unifi.env']
+    ports:
+      - target: 3478 # STUN
+        published: 3478
+        protocol: udp
+        mode: host
+      - target: 10001 # AP discovery
+        published: 10001
+        protocol: udp
+        mode: host
+      - target: 8080 # Device/ controller comm.
+        published: 8080
+        protocol: tcp
+        mode: host
+      - target: 8081
+        published: 8081
+        protocol: tcp
+        mode: host
+      - target: 8443 # Controller GUI/API as seen in a web browser
+        published: 8443
+        protocol: tcp
+        mode: host
+      - target: 8843 # # HTTPS portal redirection
+        published: 8843
+        protocol: tcp
+        mode: host
+      - target: 8880 # HTTP portal redirection
+        published: 8880
+        protocol: tcp
+        mode: host
+      - target: 6789 # Speed test
+        published: 6789
+        protocol: tcp
+        mode: host
+
+networks:
+  unifi:

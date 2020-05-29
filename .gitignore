@@ -1,0 +1,4 @@
+# Unwanted Files
+.DS_Store 
+# Unwanted Folders
+CustomDockers/
