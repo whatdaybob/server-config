@@ -14,7 +14,7 @@ services:
     container_name: nzbget
     env_file: ['${DOCKERCONFIG}/Media_Compose/env/linuxserverio.env']
     hostname: nzbget
-    image: linuxserver/nzbget:v21.0-ls49
+    image: linuxserver/nzbget:v21.0-ls55
     ports: ['16000:6789']
     networks: ['backend']
     restart: always
@@ -51,7 +51,7 @@ services:
     depends_on: ['nzbget']
     env_file: ['${DOCKERCONFIG}/Media_Compose/env/linuxserverio.env']
     hostname: radarr
-    image: linuxserver/radarr:v0.2.0.1480-ls61
+    image: linuxserver/radarr:v0.2.0.1480-ls63
     ports: ['16002:7878']
     networks: ['backend']
     restart: always
