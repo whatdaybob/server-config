@@ -40,12 +40,13 @@ services:
   #================================================================================================
   
   grafana:
-    image: grafana/grafana:7.0.0
+    image: grafana/grafana:7.0.3
     container_name: grafana
     depends_on: ['prometheus']
     ports: ['3330:3000']
     volumes: [
       'grafana_data:/var/lib/grafana',
+      '${DOCKERCONFIG}/Metrics_Compose/grafana/grafana.ini:/etc/grafana/grafana.ini',
       '${DOCKERCONFIG}/Metrics_Compose/grafana/provisioning/:/etc/grafana/provisioning/'
     ]
     env_file: ['${DOCKERCONFIG}/Metrics_Compose/env/grafana.env']
@@ -79,7 +80,7 @@ services:
   #================================================================================================
   
   nodeexporter:
-    image: prom/node-exporter:v0.18.1
+    image: prom/node-exporter:v1.0.0
     container_name: nodeexporter
     volumes:
       - /proc:/host/proc:ro
@@ -121,7 +122,7 @@ services:
   dozzle:
     container_name: dozzle
     restart: always
-    image: amir20/dozzle:v1.25.6
+    image: amir20/dozzle:v1.27.0
     environment: ['DOZZLE_TAILSIZE=300']
     volumes: ['/var/run/docker.sock:/var/run/docker.sock']
     ports: ['9999:8080']
