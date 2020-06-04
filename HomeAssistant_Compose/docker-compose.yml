@@ -10,7 +10,7 @@ services:
   mqtt:
     container_name: mqtt
     restart: always
-    image: eclipse-mosquitto:1.6.9
+    image: eclipse-mosquitto:1.6.10
     privileged: true
     volumes: [
       '${DOCKERCONFIG}/HomeAssistant_Compose/mosquitto/config:/mosquitto/config/',
@@ -63,7 +63,7 @@ services:
     container_name: homeassistant
     restart: always
     hostname: hassio
-    image: homeassistant/home-assistant:0.110.3
+    image: homeassistant/home-assistant:0.110.4
     volumes: ['${DOCKERCONFIG}/HomeAssistant_Compose/homeassistant_core/config:/config','/etc/localtime:/etc/localtime:ro']
     network_mode: "host"
     privileged: true
@@ -107,7 +107,7 @@ services:
 
   zigbee2mqtt:
     container_name: zigbee2mqtt
-    image: koenkk/zigbee2mqtt:1.13.0
+    image: koenkk/zigbee2mqtt:1.13.1
     restart: always
     privileged: true
     network_mode: host
@@ -173,4 +173,7 @@ services:
     image: zewelor/bt-mqtt-gateway
     container_name: bt-mqtt-gateway
     network_mode: host
-    volumes: ['${DOCKERCONFIG}/HomeAssistant_Compose/btmqttgateway/config.yaml:/config.yaml:ro']
+    volumes: [
+      '${DOCKERCONFIG}/HomeAssistant_Compose/btmqttgateway/config.yaml:/config.yaml:ro',
+      '${DOCKERCONFIG}/HomeAssistant_Compose/btmqttgateway/workers:/application/workers' # used to add custom workers
+    ]
